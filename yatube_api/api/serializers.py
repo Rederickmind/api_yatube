@@ -6,10 +6,11 @@ from posts.models import Comment, Group, Post
 
 class PostSerializer(serializers.ModelSerializer):
     author = SlugRelatedField(slug_field='username', read_only=True)
+    group = serializers.SlugRelatedField(read_only=True, slug_field='title')
 
     class Meta:
         model = Post
-        fields = ('id', 'text', 'author', 'image', 'pub_date')
+        fields = ('id', 'text', 'author', 'image', 'group', 'pub_date')
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -24,3 +25,4 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ('id', 'author', 'post', 'text', 'created')
+        ordering = ['-created']
