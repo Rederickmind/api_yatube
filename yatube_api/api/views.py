@@ -14,7 +14,7 @@ class PostViewSet(viewsets.ModelViewSet):
     def create(self, request):
         serializer = PostSerializer(data=request.data)
         if not request.user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         if serializer.is_valid(self):
             serializer.save(author=request.user)
             return Response(
@@ -28,6 +28,8 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def update(self, request, pk):
         post = get_object_or_404(Post, id=pk)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         if post.author != self.request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = PostSerializer(post, data=request.data, partial=True)
@@ -39,6 +41,8 @@ class PostViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, pk):
         serializer = PostSerializer(data=request.data)
         post = get_object_or_404(Post, id=pk)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         if post.author != self.request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
         if request.method == 'PUT' or request.method == 'PATCH':
@@ -52,7 +56,7 @@ class PostViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(Post, id=pk)
         if not request.user.is_authenticated:
             return Response(
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_401_UNAUTHORIZED
             )
         if post.author != request.user:
             return Response(
@@ -82,7 +86,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(Post, id=post_id)
         serializer = CommentSerializer(data=request.data)
         if not request.user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         if serializer.is_valid(self):
             serializer.save(author=self.request.user, post=post)
             return Response(
@@ -99,11 +103,11 @@ class CommentViewSet(viewsets.ModelViewSet):
         comment = get_object_or_404(Comment, id=pk, post=post)
         serializer = CommentSerializer(data=request.data)
         if not request.user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
         if comment.author != self.request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
         if serializer.is_valid(self):
-            serializer.save(author=self.request.user, comment=comment)
+            serializer.save(comment=comment)
             return Response(
                 serializer.data,
                 status=status.HTTP_201_CREATED
@@ -118,13 +122,16 @@ class CommentViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(Post, id=post_id)
         comment = get_object_or_404(Comment, id=pk, post=post)
         if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if comment.author != request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        if comment.author != self.request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        if request.method == 'PUT' or request.method == 'PATCH':
-            serializer = CommentSerializer(comment, data=request.data)
+        serializer = CommentSerializer(comment, data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(
+                author=self.request.user,
+                post=post,
+                data=request.data
+            )
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -132,8 +139,8 @@ class CommentViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(Post, id=post_id)
         comment = get_object_or_404(Comment, id=pk, post=post)
         if not request.user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        if comment.author != self.request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(status.HTTP_401_UNAUTHORIZED)
+        if comment.author != request.user:
+            return Response(status.HTTP_403_FORBIDDEN)
         comment.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
