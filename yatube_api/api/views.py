@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
@@ -10,18 +11,55 @@ class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
 
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-
-    def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
+    def create(self, request):
+        serializer = PostSerializer(data=request.data)
+        if not request.user.is_authenticated:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        super(PostViewSet, self).perform_update(serializer)
+        if serializer.is_valid(self):
+            serializer.save(author=request.user)
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
+    def update(self, request, pk):
+        post = get_object_or_404(Post, id=pk)
+        if post.author != self.request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        super(PostViewSet, self).perform_destroy(instance)
+        serializer = PostSerializer(post, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def partial_update(self, request, pk):
+        serializer = PostSerializer(data=request.data)
+        post = get_object_or_404(Post, id=pk)
+        if post.author != self.request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if request.method == 'PUT' or request.method == 'PATCH':
+            serializer = PostSerializer(post, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, pk):
+        post = get_object_or_404(Post, id=pk)
+        if not request.user.is_authenticated:
+            return Response(
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if post.author != request.user:
+            return Response(
+                status=status.HTTP_403_FORBIDDEN
+            )
+        post.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
@@ -34,18 +72,68 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        post_id = self.kwargs.get("post_id")
-        return Comment.objects.filter(post=post_id)
+        post_id = get_object_or_404(Post, pk=self.kwargs.get('post_id'))
+        comment_id = self.kwargs.get('comment_id')
+        if comment_id:
+            return Comment.objects.filter(id=comment_id, post_id=post_id)
+        return Comment.objects.filter(post_id=post_id)
 
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-
-    def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
+    def create(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        serializer = CommentSerializer(data=request.data)
+        if not request.user.is_authenticated:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        super(CommentViewSet, self).perform_update(serializer)
+        if serializer.is_valid(self):
+            serializer.save(author=self.request.user, post=post)
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
+    def update(self, request, post_id, pk):
+        post = get_object_or_404(Post, id=post_id)
+        comment = get_object_or_404(Comment, id=pk, post=post)
+        serializer = CommentSerializer(data=request.data)
+        if not request.user.is_authenticated:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        super(CommentViewSet, self).perform_destroy(instance)
+        if comment.author != self.request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if serializer.is_valid(self):
+            serializer.save(author=self.request.user, comment=comment)
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    def partial_update(self, request, post_id, pk):
+        serializer = CommentSerializer(data=request.data)
+        post = get_object_or_404(Post, id=post_id)
+        comment = get_object_or_404(Comment, id=pk, post=post)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if comment.author != self.request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if request.method == 'PUT' or request.method == 'PATCH':
+            serializer = CommentSerializer(comment, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, post_id, pk):
+        post = get_object_or_404(Post, id=post_id)
+        comment = get_object_or_404(Comment, id=pk, post=post)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if comment.author != self.request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
