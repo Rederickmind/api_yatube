@@ -100,17 +100,20 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def update(self, request, post_id, pk):
         post = get_object_or_404(Post, id=post_id)
-        comment = get_object_or_404(Comment, id=pk, post=post)
-        serializer = CommentSerializer(data=request.data)
+        comment = get_object_or_404(Comment, id=pk)
+        serializer = CommentSerializer(comment, data=request.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         if comment.author != self.request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                data={"detail": 'Нельзя изменять чужой комментарий'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         if serializer.is_valid(self):
-            serializer.save(comment=comment)
+            serializer.save(author=request.user, post=post)
             return Response(
                 serializer.data,
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_200_OK
             )
         return Response(
             serializer.errors,
@@ -118,14 +121,13 @@ class CommentViewSet(viewsets.ModelViewSet):
         )
 
     def partial_update(self, request, post_id, pk):
-        serializer = CommentSerializer(data=request.data)
         post = get_object_or_404(Post, id=post_id)
-        comment = get_object_or_404(Comment, id=pk, post=post)
+        comment = get_object_or_404(Comment, id=pk)
+        serializer = CommentSerializer(comment, data=request.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         if comment.author != request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        serializer = CommentSerializer(comment, data=request.data)
         if serializer.is_valid():
             serializer.save(
                 author=self.request.user,
