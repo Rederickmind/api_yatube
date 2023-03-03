@@ -138,13 +138,12 @@ class CommentViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, post_id, pk):
+        comment = get_object_or_404(Comment, id=pk)
         if not request.user.is_authenticated:
             return Response(
                 data={"detail": 'Вы не авторизованы'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        post = get_object_or_404(Post, id=post_id)
-        comment = get_object_or_404(Comment, id=pk)
         if comment.author != request.user:
             return Response(
                 data={"detail": 'Нельзя удалить чужой комментарий'},
